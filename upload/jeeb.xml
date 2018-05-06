@@ -21,6 +21,22 @@
             <option value="live">VMPAYMENT_JEEB_NETWORK_LABEL_LIVE</option>
             <option value="test">VMPAYMENT_JEEB_NETWORK_LABEL_TEST</option>
         </param>
+        <param name="baseCur" type="list" default="btc" label="Base Currency"
+           description="Base Currency">
+            <option value="btc">BTC</option>
+            <option value="irr">EUR</option>
+            <option value="eur">IRR</option>
+            <option value="usd">USD</option>
+        </param>
+        <param name="targetCur" type="text" default="btc/test-btc" label="Target Currency (Enter options from [btc,xrp,xmr,ltc,bch,eth,test-btc]. For multiple options use '/' for separating. Eg: 'btc/test-btc'    )"
+           description="Target Currency">
+        </param>
+        <param name="lang" type="list" default="none" label="Language"
+           description="Language">
+            <option value="none">AUTO-SELECT</option>
+            <option value="en">ENGLISH</option>
+            <option value="fa">PERSIAN</option>
+        </param>
     </params>
     <config>
         <fields name="params">
@@ -31,6 +47,22 @@
                        description="VMPAYMENT_JEEB_NETWORK_LABEL">
                         <option value="live">VMPAYMENT_JEEB_NETWORK_LABEL_LIVE</option>
                         <option value="test">VMPAYMENT_JEEB_NETWORK_LABEL_TEST</option>
+                    </field>
+                    <field name="baseCur" type="list" default="btc" label="BASE CURRENCY"
+                       description="BASE CURRENCY">
+                       <option value="btc">BTC</option>
+                       <option value="irr">EUR</option>
+                       <option value="eur">IRR</option>
+                       <option value="usd">USD</option>
+                    </field>
+                    <field name="targetCur" type="text" default="btc/test-btc" label="Target Currency"
+                       description="Target Currency">
+                    </field>
+                    <field name="lang" type="list" default="none" label="LANGUAGE"
+                       description="LANGUAGE">
+                       <option value="none">AUTO-SELECT</option>
+                       <option value="en">ENGLISH</option>
+                       <option value="fa">PERSIAN</option>
                     </field>
                     <field name="payment_logos" type="vmfiles"  multiple="true" label="VMPAYMENT_JEEB_LOGO"
                       description="VMPAYMENT_JEEB_LOGO"

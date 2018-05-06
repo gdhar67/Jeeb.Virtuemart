@@ -333,16 +333,7 @@ class plgVmPaymentJeeb extends vmPSPlugin
         $method = $this->getVmPluginMethod($order['details']['BT']->virtuemart_paymentmethod_id);
 
         // Call Jeeb
-        if ($method->network == "test")
-        {
-            $network_uri = "http://test.jeeb.io:9876/";
-            $allowReject = FALSE;
-        }
-        else
-        {
-            $network_uri = "https://jeeb.io/";
-            $allowReject = TRUE;
-        }
+        $network_uri = "https://core.jeeb.io/api/";
 
 
         jeeblog("Entered Jeeb-Notification");
@@ -362,7 +353,7 @@ class plgVmPaymentJeeb extends vmPSPlugin
 
           $data_string = json_encode($data);
           $api_key = $method->merchant_apikey;
-          $url = $network_uri.'api/bitcoin/confirm/'.$api_key;
+          $url = $network_uri.'payments/' . $api_key . '/confirm';
           jeeblog("Signature:".$api_key." Base-Url:".$network_uri." Url:".$url);
 
           $ch = curl_init($url);
@@ -409,48 +400,6 @@ class plgVmPaymentJeeb extends vmPSPlugin
         else{
           jeeblog('Cannot read state id sent by Jeeb');
         }
-
-
-
-        // $curl   = curl_init('https://' . $network_uri . '/api/invoice/'.$bitpay_data['id']);
-        // $length = 0;
-        //
-        // $uname  = base64_encode($method->merchant_apikey);
-        // $header = array(
-        //     'Content-Type: application/json',
-        //     "Content-Length: $length",
-        //     "Authorization: Basic $uname",
-        //     'X-Jeeb-Plugin-Info: virtuemart073015',
-        // );
-        //
-        // curl_setopt($curl, CURLOPT_PORT, 443);
-        // curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        // curl_setopt($curl, CURLOPT_TIMEOUT, 10);
-        // curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC ) ;
-        // curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 1); // verify certificate
-        // curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 2); // check existence of CN and verify that it matches hostname
-        // curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        // curl_setopt($curl, CURLOPT_FORBID_REUSE, 1);
-        // curl_setopt($curl, CURLOPT_FRESH_CONNECT, 1);
-        //
-        // $responseString = curl_exec($curl);
-        //
-        // if($responseString == false)
-        // {
-        //     return NULL;
-        // }
-        // else
-        // {
-        //     $bitpay_data = json_decode($responseString, true);
-        // }
-        // curl_close($curl);
-        //
-        // $this->logInfo ('IPN ' . implode (' / ', $bitpay_data), 'message');
-        //
-        // if ($bitpay_data['status'] != 'confirmed' and $bitpay_data['status'] != 'complete')
-        // {
-        //     return NULL; // not the status we're looking for
-        // }
     }
 
     /**
@@ -650,139 +599,35 @@ class plgVmPaymentJeeb extends vmPSPlugin
 
         jeeblog("Entered Confirm payment.....");
 
-        if ($method->network == "test")
-        {
-            $network_uri = "http://test.jeeb.io:9876/";
-            $allowReject = FALSE;
-        }
-        else
-        {
-            $network_uri = "https://jeeb.io/";
-            $allowReject = TRUE;
-        }
+        $network_uri = "https://core.jeeb.io/api/" ;
+        $baseCur     = $method->baseCur;
+        $target_cur  = $method->targetCur;
+        $lang        = $method->lang=="none"? NULL : $method->lang ;
+
 
         // Convert irr to btn
-        $btc = convertIrrToBtc ( $network_uri, $order['details']['BT']->order_total, $method->merchant_apikey );
+        $amount = convertIrrToBtc ( $network_uri, $order['details']['BT']->order_total, $method->merchant_apikey, $baseCur );
 
         jeeblog("Url:".$network_uri." Bitcoin:".$btc." Notification Url:".(JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component')).' callback Url:'. (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&on=' . $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id . '&Itemid=' . JRequest::getInt ('Itemid'))));
         $params = array(
           'orderNo'          => $order['details']['BT']->virtuemart_order_id,
-          'requestAmount'    => $btc,
-          'notificationUrl'  => (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component')),
-          'callBackUrl'       => (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&on=' . $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id . '&Itemid=' . JRequest::getInt ('Itemid'))),
-          'allowReject'      => $allowReject
+          'value'            => $amount,
+          'webhookUrl'       => (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component')),
+          'callBackUrl'      => (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&on=' . $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id . '&Itemid=' . JRequest::getInt ('Itemid'))),
+          'allowReject'      => $method->network == "test" ? false : true,
+          "coins"            => $target_cur,
+          "allowTestNet"     => $method->network == "test" ? true : false,
+          "language"         => $lang
         );
         // Create Invoice for payment in the Jeeb server
-        $token = createInvoice ( $network_uri, $order['details']['BT']->order_total, $params, $method->merchant_apikey );
+        $token = createInvoice ( $network_uri, $amount, $params, $method->merchant_apikey );
         jeeblog('Token:'.$token);
 
         // Redirecting user for the payment
         redirectPayment ( $network_uri, $token );
         exit;
 
-        // // END printing out HTML Form code (Payment Extra Info)
-        // $q  = 'SELECT `currency_code_3` FROM `#__virtuemart_currencies` WHERE `virtuemart_currency_id`="' . $method->payment_currency . '" ';
-        // $db = JFactory::getDBO();
-        // $db->setQuery($q);
-        // $paymentCurrency        = CurrencyDisplay::getInstance($method->payment_currency);
-        // $totalInPaymentCurrency = round($paymentCurrency->convertCurrencyTo($method->payment_currency, $order['details']['BT']->order_total, false), 2);
-        // $cd                     = CurrencyDisplay::getInstance($cart->pricesCurrency);
-        // $usrBT                  = $order['details']['BT'];
-        // $usrST                  = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
-        //
-        // $options['transactionSpeed'] = $method->speed;
-        // $options['currency']         = $currency_code_3;
-        // $options['notificationURL']  = (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component'));
-        // $options['redirectURL']      = (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&on=' . $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id . '&Itemid=' . JRequest::getInt ('Itemid')));
-        // $options['posData']          = '{"id_order": "' . $order['details']['BT']->order_number . '"';
-        // $options['posData']         .= ', "hash": "' . crypt($order['details']['BT']->order_number, $method->merchant_apikey) . '"';
-        // $options['posData']         .= '}';
-        // $options['orderID']          = $order['details']['BT']->order_number;
-        // $options['price']            = $order['details']['BT']->order_total;
-        //
-        //
-        // $postOptions = array('orderID', 'itemDesc', 'itemCode', 'notificationEmail', 'notificationURL', 'redirectURL',
-        //     'posData', 'price', 'currency', 'physical', 'fullNotifications', 'transactionSpeed', 'buyerName',
-        //     'buyerAddress1', 'buyerAddress2', 'buyerCity', 'buyerState', 'buyerZip', 'buyerEmail', 'buyerPhone');
-        //
-        // foreach($postOptions as $o)
-        // {
-        //     if (array_key_exists($o, $options))
-        //     {
-        //         $post[$o] = $options[$o];
-        //     }
-        // }
-        //
-        // $post = json_encode($post);
-        //
-        // // Call Jeeb
-        // if ($method->network == "test")
-        // {
-        //     $network_uri = 'test.bitpay.com';
-        // }
-        // else
-        // {
-        //     $network_uri = 'bitpay.com';
-        // }
-        // $curl   = curl_init('https://' . $network_uri . '/api/invoice/');
-        // $length = 0;
-        // if ($post)
-        // {
-        //     curl_setopt($curl, CURLOPT_POST, 1);
-        //     curl_setopt($curl, CURLOPT_POSTFIELDS, $post);
-        //     $length = strlen($post);
-        // }
-        //
-        // $uname  = base64_encode($method->merchant_apikey);
-        // $header = array(
-        //     'Content-Type: application/json',
-        //     "Content-Length: $length",
-        //     "Authorization: Basic $uname",
-        //     'X-Jeeb-Plugin-Info: virtuemart073015',
-        // );
-        //
-        // curl_setopt($curl, CURLOPT_PORT, 443);
-        // curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        // curl_setopt($curl, CURLOPT_TIMEOUT, 10);
-        // curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC ) ;
-        // curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 1); // verify certificate
-        // curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 2); // check existence of CN and verify that it matches hostname
-        // curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        // curl_setopt($curl, CURLOPT_FORBID_REUSE, 1);
-        // curl_setopt($curl, CURLOPT_FRESH_CONNECT, 1);
-        //
-        // $responseString = curl_exec($curl);
-        //
-        // if($responseString == false)
-        // {
-        //
-        //     $response = curl_error($curl);
-        // }
-        // else
-        // {
-        //     $response = json_decode($responseString, true);
-        // }
-        // curl_close($curl);
-        //
-        // $this->logInfo ('invoice ' . implode (' / ', $response), 'message');
-        // if (isset($response['url']))
-        // {
-        //     $cart->emptyCart ();
-        //     header('Location: ' . $response['url']);
-        //     exit;
-        // }
-        // else
-        // {
-        //     $html = vmText::_ ('Jeeb could not process your payment for the following reasons:') .
-        //         " <br /> -------------------- "  . "<br />" .
-        //         vmText::_ ($response['error']['message']) . "<br /> " .
-        //         vmText::_ ('Please contact the store owner');
-        //     bplog("VM JeebError: " . $response['error']['message'] . " with order id: " . $order['details']['BT']->order_number);
-        //     bplog('curl error - no invoice url');
-        //
-        //     $returnValue = 0;
-        //     return $this->processConfirmedOrderPaymentResponse ($returnValue, $cart, $order, $html, '', '');
-        // }
+
     }
 
     /**
@@ -845,9 +690,9 @@ class plgVmPaymentJeeb extends vmPSPlugin
     }
 }
 
-function convertIrrToBtc($url, $amount, $signature) {
+function convertIrrToBtc($url, $amount, $signature, $baseCur) {
   jeeblog("Entered into convertIrrToBtc...");
-  $ch = curl_init($url.'api/convert/'.$signature.'/'.$amount.'/irr/btc');
+  $ch = curl_init($url.'currency?'.$signature.'&value='.$amount.'&base='.$baseCur.'&target=btc');
   curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLOPT_HTTPHEADER, array(
@@ -856,7 +701,7 @@ function convertIrrToBtc($url, $amount, $signature) {
 
 $result = curl_exec($ch);
 $data = json_decode( $result , true);
-jeeblog("data = ".var_export($data, TRUE));
+jeeblog("Response => ".var_export($data, TRUE));
 // Return the equivalent bitcoin value acquired from Jeeb server.
 return (float) $data["result"];
 
@@ -867,7 +712,7 @@ function createInvoice($url, $amount, $options = array(), $signature) {
     jeeblog("Entered into createInvoice...");
     $post = json_encode($options);
 
-    $ch = curl_init($url.'api/bitcoin/issue/'.$signature);
+    $ch = curl_init($url.'payments/' . $signature . '/issue/');
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
     curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -888,7 +733,7 @@ function createInvoice($url, $amount, $options = array(), $signature) {
 function redirectPayment($url, $token) {
   jeeblog("Entered into redirectPayment...");
   // Using Auto-submit form to redirect user with the token
-  echo "<form id='form' method='post' action='".$url."invoice/payment'>".
+  echo "<form id='form' method='post' action='".$url."payments/invoice'>".
           "<input type='hidden' autocomplete='off' name='token' value='".$token."'/>".
          "</form>".
          "<script type='text/javascript'>".
