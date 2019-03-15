@@ -603,10 +603,16 @@ class plgVmPaymentJeeb extends vmPSPlugin
         $baseCur     = $method->baseCur;
         $target_cur  = $method->targetCur;
         $lang        = $method->lang=="none"? NULL : $method->lang ;
+        $order_total = $order['details']['BT']->order_total;
+
+        if($baseCur=='toman'){
+          $baseCur='irr';
+          $order_total *= 10;
+        }
 
 
         // Convert irr to btn
-        $amount = convertIrrToBtc ( $network_uri, $order['details']['BT']->order_total, $method->merchant_apikey, $baseCur );
+        $amount = convertIrrToBtc ( $network_uri, $order_total, $method->merchant_apikey, $baseCur );
 
         jeeblog("Url:".$network_uri." Bitcoin:".$btc." Notification Url:".(JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component')).' callback Url:'. (JROUTE::_ (JURI::root () . 'index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&on=' . $order['details']['BT']->order_number . '&pm=' . $order['details']['BT']->virtuemart_paymentmethod_id . '&Itemid=' . JRequest::getInt ('Itemid'))));
         $params = array(
